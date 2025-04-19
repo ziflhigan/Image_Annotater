@@ -1,111 +1,163 @@
-"""Enhanced sidebar file-explorer component with search and filtering."""
+"""Sidebar file-explorer component with hierarchical view, search, filtering, and rename button."""
 
 from __future__ import annotations
 
-import os
+from collections import defaultdict
 from pathlib import Path
-from typing import List, Optional, Dict, Set
+from typing import List, Tuple, DefaultDict
 
 import streamlit as st
-
-from utils.file_utils import list_images, derive_category, ANNOT_ROOT
-
-
-def get_annotated_images() -> Set[str]:
-    """Returns set of image ids that have been annotated already."""
-    annotated = set()
-    if not ANNOT_ROOT.exists():
-        return annotated
-
-    # Check every schema folder for existing JSONs
-    for schema_dir in ANNOT_ROOT.glob("schema_*"):
-        if schema_dir.is_dir():
-            for json_file in schema_dir.glob("*.json"):
-                # Store just the image id (filename without extension)
-                annotated.add(json_file.stem)
-
-    return annotated
+# Use the functions from file_utils directly
+from utils.file_utils import (
+    list_images,
+    derive_full_relative_path,
+    get_annotated_image_stems,  # Use stem-based check
+    rename_dataset_files_to_uuid  # Import renaming function
+)
 
 
-def image_selector() -> None:  # Changed return type to None
-    """Enhanced sidebar with search, filtering, and annotation status indicators.
-    Updates session state directly when a button is clicked.
-    """
-    st.sidebar.header("Dataset Images")
+# No longer need uuid here unless for the button logic, keep it for now
 
-    # Initialize the session state key if it doesn't exist
+
+# No longer need get_annotated_image_uuids
+
+def image_selector(search_term: str, selected_filter: str) -> None:
+    """Displays hierarchical image list, handles selection, includes rename button."""
+
+    # Initialize session state keys if they don't exist
     if "selected_image_path" not in st.session_state:
         st.session_state.selected_image_path = None
+    # No longer need UUID state here
+    # if "image_path_to_uuid" not in st.session_state: ...
+    # if "current_image_uuid" not in st.session_state: ...
 
-    # Search box
-    search_term = st.sidebar.text_input("🔍 Search images", key="search_images")
+    print("--- image_selector --- Start")  # DEBUG
+    print(f"    Received search_term='{search_term}', selected_filter='{selected_filter}'")  # DEBUG
 
-    # Filter options
-    filter_options = ["All", "Annotated", "Not Annotated"]
-    selected_filter = st.sidebar.radio("Filter by status:", filter_options, horizontal=True, key="filter_status")
-
-    # Get all images and annotated status
+    # Get all images and annotated status (using stems)
     all_images = list_images()
-    annotated_ids = get_annotated_images()
+    annotated_stems = get_annotated_image_stems()  # Get stems of annotated files
 
-    # Apply search filter if provided
-    if search_term:
-        all_images = [img for img in all_images if search_term.lower() in img.lower()]
+    # --- Pre-process images: Filter ---
+    # No UUID generation here anymore
+    processed_images: List[Tuple[str, str, bool]] = []  # (img_path_str, img_stem, is_annotated)
 
-    # Apply annotation status filter
-    filtered_images = []
-    for img_path_str in all_images:  # Iterate over strings
-        img_id = Path(img_path_str).stem
-        is_annotated = img_id in annotated_ids
+    print(f"    Processing {len(all_images)} total images found by list_images().")  # DEBUG
+    for i, img_path_str in enumerate(all_images):
+        img_path_obj = Path(img_path_str)
+        img_stem = img_path_obj.stem
 
-        if selected_filter == "All" or \
-                (selected_filter == "Annotated" and is_annotated) or \
-                (selected_filter == "Not Annotated" and not is_annotated):
-            filtered_images.append((img_path_str, is_annotated))  # Store path as string
+        # Apply search filter first
+        if search_term and search_term.lower() not in img_path_str.lower():
+            continue
 
-    # Group by category for better organization
-    images_by_category: Dict[str, List[tuple]] = {}
-    for img_path_str, is_annotated in filtered_images:
-        category = derive_category(img_path_str)  # Use string path
-        if category not in images_by_category:
-            images_by_category[category] = []
-        images_by_category[category].append((img_path_str, is_annotated))
+        # Check annotation status using stem
+        is_annotated = img_stem in annotated_stems
+        # print(f"    Image: {img_path_obj.name}, Stem: {img_stem}, Annotated: {is_annotated}") # DEBUG
 
-    # Display message if no images match filters
-    if not filtered_images:
+        # Apply annotation status filter
+        filter_passed = (selected_filter == "All" or
+                         (selected_filter == "Annotated" and is_annotated) or
+                         (selected_filter == "Not Annotated" and not is_annotated))
+
+        if filter_passed:
+            processed_images.append((img_path_str, img_stem, is_annotated))
+
+    # --- Group images by hierarchical path ---
+    images_by_hierarchy: DefaultDict[str, List[Tuple[str, str, bool]]] = defaultdict(list)
+    # print("\n    Grouping images by hierarchy...") # DEBUG
+    for img_path_str, img_stem, is_annotated in processed_images:
+        hierarchy_key = derive_full_relative_path(img_path_str)
+        # print(f"        Grouping: Path='{img_path_str}', Key='{hierarchy_key}'") # DEBUG
+        if hierarchy_key == "(error_deriving_path)":
+            print(f"        WARNING: Skipping image due to path derivation error: {img_path_str}")
+            continue
+        if hierarchy_key == "":
+            hierarchy_key = "(Root Level)"
+
+        images_by_hierarchy[hierarchy_key].append((img_path_str, img_stem, is_annotated))
+
+    # print(f"\n    Found {len(images_by_hierarchy)} hierarchical groups.") # DEBUG
+
+    # --- Display Hierarchical Tree ---
+    if not processed_images:
         st.sidebar.warning("No images found matching your criteria.")
-        # Do not return None here, let main handle no selection
+    else:
+        sorted_categories = sorted(images_by_hierarchy.keys())
+        # print("\n    Displaying expanders...") # DEBUG
 
-    # Display images grouped by category with annotation status indicators
-    # selected_image = None # We won't return this directly
+        for category_path in sorted_categories:
+            images_in_category = images_by_hierarchy[category_path]
+            images_in_category.sort(key=lambda item: Path(item[0]).name)  # Sort by filename
 
-    for category, images in sorted(images_by_category.items()):  # Sort categories
-        # Use the category string (which is now a path) directly in the label
-        # Use an f-string to ensure it's treated as a string
-        expander_label = f"{category} ({len(images)})"
-        with st.sidebar.expander(expander_label, expanded=True):
-            # Sort images within category by name
-            sorted_images = sorted(images, key=lambda item: os.path.basename(item[0]))
-            for img_path_str, is_annotated in sorted_images:
-                img_name = os.path.basename(img_path_str)
-                status_icon = "✅ " if is_annotated else "🔘 "
-                if st.button(f"{status_icon}{img_name}", key=f"btn_{img_path_str}", use_container_width=True):
-                    st.session_state.selected_image_path = img_path_str
-                    # No rerun here, main loop handles state change
+            expander_label = f"{category_path} ({len(images_in_category)})"
+            # print(f"    Creating Expander: '{expander_label}'") # DEBUG
+            # Determine if expander should be expanded by default (e.g., if it contains the selected image)
+            # Default to True for simplicity now, could be made smarter
+            is_expanded = True
+            # Check if the currently selected image belongs to this category path
+            # This logic needs refinement if selection persistence across runs is needed
+            # if st.session_state.selected_image_path:
+            #      selected_cat_path = derive_full_relative_path(st.session_state.selected_image_path)
+            #      if selected_cat_path == "" : selected_cat_path = "(Root Level)"
+            #      is_expanded = (category_path == selected_cat_path)
 
-    # REMOVED the selectbox to simplify and avoid conflicts
-    # choice = st.sidebar.selectbox(...)
+            with st.sidebar.expander(expander_label, expanded=is_expanded):  # Default expanded
+                for img_path_str, img_stem, is_annotated in images_in_category:
+                    img_name = Path(img_path_str).name
+                    status_icon = "✅" if is_annotated else "⚪"
 
-    # Display image count statistics
-    st.sidebar.caption(f"Showing {len(filtered_images)} of {len(all_images)} images")
+                    # Use image path string in button key for uniqueness until renamed
+                    button_key = f"btn_{img_path_str}"
+                    if st.button(f"{status_icon} {img_name}", key=button_key, use_container_width=True):
+                        print(f"\n--- BUTTON CLICKED ---")  # DEBUG
+                        print(f"    Button Key: {button_key}")  # DEBUG
+                        print(f"    Image Name: {img_name}")  # DEBUG
+                        print(f"    Assigning selected_image_path = '{img_path_str}'")  # DEBUG
+                        st.session_state.selected_image_path = img_path_str
+                        # No UUID assignment needed here anymore
+                        # st.session_state.current_image_uuid = img_uuid
+                        # ...
+
+                        print(f"    State AFTER click: selected_path='{st.session_state.selected_image_path}'")  # DEBUG
+
+    # --- Display Utilities Below Tree ---
+    st.sidebar.markdown("---")  # Separator
+
+    # Image count statistics
+    st.sidebar.caption(f"Showing {len(processed_images)} of {len(all_images)} images")
 
     # Keyboard navigation hint
     with st.sidebar.expander("⌨️ Keyboard Shortcuts"):
         st.markdown("""
-        - `Esc`: Deselect/cancel current action
-        - `Del`: Delete selected rectangle (Use toolbar)
-        - `Ctrl+S`: Save annotation (Use Confirm button)
-        - `Ctrl+G`: Generate Q/A (Use Generate button)
-        """)
+         - Use canvas toolbar for drawing/deleting boxes.
+         - Use buttons for Confirm / Generate Q/A.
+         """)
 
-    # No return value needed, selection is handled via session state
+    # --- Renaming Button ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Dataset Utilities")
+    st.sidebar.warning("Use with caution!")
+    if st.sidebar.button("🧬 Rename Dataset Files to UUIDs",
+                         help="WARNING: Renames original dataset images and attempts to update annotations. "
+                              "BACK UP FIRST!"):
+        print("--- Rename Button Clicked ---")  # DEBUG
+        st.sidebar.info("Starting renaming process... This may take a while.")
+        progress_bar = st.sidebar.progress(0.0)
+        try:
+            # Call the renaming function from file_utils
+            success, annot_updated, errors = rename_dataset_files_to_uuid(progress_bar)
+            progress_bar.progress(1.0)  # Ensure progress bar reaches 100%
+            st.sidebar.success(f"Renaming finished! {success} images renamed, {annot_updated} annotations updated.")
+            if errors > 0:
+                st.sidebar.error(f"{errors} errors occurred during renaming. Check console logs.")
+            else:
+                st.sidebar.success("Renaming completed successfully.")
+            # Force a rerun to refresh the sidebar with new filenames
+            st.sidebar.info("Refreshing file list...")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"An error occurred during renaming: {e}")
+            progress_bar.progress(1.0)  # Clear progress bar on error
+
+    print("--- image_selector --- End")  # DEBUG
