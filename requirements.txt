@@ -1,0 +1,8 @@
+streamlit==1.40.1
+streamlit-drawable-canvas==0.9.3
+python-dotenv~=1.1.0
+pydantic~=2.11.3
+Pillow~=11.2.1
+google-genai==1.11.0
+typing~=3.7.4.3
+datetime~=5.5
