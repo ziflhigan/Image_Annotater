@@ -24,6 +24,9 @@ from utils.logger import get_gemini_logger
 # Get logger for this module
 logger = get_gemini_logger()
 
+# Default model to use if not specified in environment
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+
 
 # ── Pydantic model (NO non‑None defaults) ─────────────────────────────────────
 class GeminiQA(BaseModel):
@@ -50,6 +53,16 @@ def _client() -> genai.Client:
         logger.debug("Initializing new Gemini client")
         _CLIENT = genai.Client(api_key=api_key)
     return _CLIENT
+
+
+def _get_model_name() -> str:
+    """Get the Gemini model name from environment with fallback to default."""
+    model_name = getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+    if model_name != DEFAULT_GEMINI_MODEL:
+        logger.info(f"Using custom Gemini model from environment: {model_name}")
+    else:
+        logger.debug(f"Using default Gemini model: {DEFAULT_GEMINI_MODEL}")
+    return model_name
 
 
 def _upload(path: Path) -> File:
@@ -82,7 +95,7 @@ def generate_qa(
         *,
         existing_schema: Optional[dict] = None,
         use_annotated_image: bool = False,
-        model_name: str = "gemini-2.5-flash-preview-04-17",
+        model_name: Optional[str] = None,
 ) -> List[GeminiQA]:
     """
     Generate QA pairs for an image using Gemini.
@@ -91,7 +104,7 @@ def generate_qa(
         image_path: Path to the image file
         existing_schema: Optional existing schema with text fields to consider
         use_annotated_image: Whether to use annotated image (with bounding boxes) instead of original
-        model_name: Gemini model name to use
+        model_name: Gemini model name to use (overrides environment variable if provided)
 
     Returns:
         List of GeminiQA objects containing question-answer pairs
@@ -100,6 +113,9 @@ def generate_qa(
     img_path = Path(image_path)
     logger.info(f"Generating QA for image: {img_path.name}")
     logger.info(f"Using annotated image: {use_annotated_image}")
+
+    # Determine model name, prioritizing function parameter over environment variable
+    gemini_model = model_name if model_name else _get_model_name()
 
     if use_annotated_image:
         # Try to find an annotated image
@@ -146,9 +162,9 @@ def generate_qa(
         response_schema=clean_schema,
     )
 
-    logger.info(f"Calling Gemini model: {model_name}")
+    logger.info(f"Calling Gemini model: {gemini_model}")
     response = _client().models.generate_content(
-        model=model_name,
+        model=gemini_model,
         contents=[file_part],  # prompt is in system_instruction
         config=cfg,
     )

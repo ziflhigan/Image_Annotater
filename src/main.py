@@ -70,7 +70,7 @@ for key, default_value in default_keys.items():
 
 def render_header():
     """Render the app header with stats."""
-    st.title("📑 Image Annotater – VLM Malaysia")
+    st.title("📑 Image Annotater")
     try:
         stats = get_schema_stats()
         if stats["total"] > 0:

@@ -9,7 +9,7 @@ Please generate 3-5 different question-answer pairs for the image, including AT 
 - vqa (more detailed visual question answering)
 - instruction (instruction-following with the image)
 
-If the image attached has bounding box(ex), consider to generate the Q/A pairs around it/them.
+Important: If the image attached has bounding box(ex), generate AT LEAST ONE the Q/A pairs around it/them.
 
 For each QA pair, consider the following rules based on existing text fields:
 1. If both text_ms AND text_en are provided in the schema, use those exact texts as-is.
