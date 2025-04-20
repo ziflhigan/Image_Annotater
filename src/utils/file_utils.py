@@ -113,7 +113,8 @@ def _get_output_subdir(base_prefix: str, relative_structure: str) -> Path:
     return output_dir
 
 
-def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox], rotated_image=None,
+def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox],
+                         rect_colors: List[str] = None, rotated_image=None,
                          rotation_angle: int = 0) -> Path:
     """
     Loads original image, converts to JPG, draws rectangles,
@@ -123,6 +124,7 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
         original_path_str: Relative path string to the original image.
         image_id: The ID (original stem or UUID) used for the output filename.
         rects: List of bounding boxes (scaled to original dimensions).
+        rect_colors: List of colors for each rectangle (hex color strings).
         rotated_image: Optional pre-rotated PIL image to use instead of loading the original.
         rotation_angle: Angle of rotation to apply if rotated_image not provided.
 
@@ -146,6 +148,7 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
     print(f"    Output Path: {out_path}")  # DEBUG
     print(f"    Rotation Angle: {rotation_angle}")  # DEBUG
     print(f"    Using Provided Rotated Image: {rotated_image is not None}")  # DEBUG
+    print(f"    Rect Colors Provided: {rect_colors is not None}")  # DEBUG
 
     try:
         # Use provided rotated image if available, otherwise load and rotate
@@ -162,10 +165,19 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
 
         if rects:
             draw = ImageDraw.Draw(img)
-            colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
+            # Only use this as fallback if no colors are provided
+            default_colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
+
             for i, bbox in enumerate(rects):
                 if len(bbox) == 4:
-                    color = colors[i % len(colors)]
+                    # Use the provided color if available, otherwise fall back to default colors
+                    if rect_colors and i < len(rect_colors):
+                        color = rect_colors[i]
+                        print(f"    Using provided color for box #{i + 1}: {color}")  # DEBUG
+                    else:
+                        color = default_colors[i % len(default_colors)]
+                        print(f"    Using default color for box #{i + 1}: {color}")  # DEBUG
+
                     draw.polygon(bbox, outline=color, width=3)
                 else:
                     st.warning(f"Skipping invalid bbox for drawing: {bbox}")

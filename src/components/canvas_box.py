@@ -30,7 +30,7 @@ DEFAULT_COLORS = {
 }
 
 
-def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, Optional[Image.Image]]:
+def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, Optional[Image.Image], List[str]]:
     """Enhanced canvas using load_and_convert_image, with resizing, rotation, and coordinates.
 
     Args:
@@ -42,8 +42,10 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
             - List of bounding boxes relative to the *displayed* canvas.
             - Scale factor applied (original_width / displayed_width).
             - The rotated image (PIL.Image) that was displayed or None if error.
+            - List of colors for each bounding box.
     """
     boxes: List[BBox] = []
+    box_colors: List[str] = []  # Store colors for boxes
     scale_factor = 1.0
     displayed_image = None
 
@@ -84,7 +86,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
     if img_original is None:
         # Error already shown by load_and_convert_image
         logger.error(f"Failed to load image: {image_path}")
-        return [], 1.0, None  # Return empty list and default scale on load error
+        return [], 1.0, None, []  # Return empty lists and default scale on load error
 
     try:
         # --- Rotation ---
@@ -149,6 +151,10 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                 width = int(obj.get("width", 0))
                 height = int(obj.get("height", 0))
 
+                # Get stroke color
+                stroke_color = obj.get("stroke", st.session_state.box_color)
+                box_colors.append(stroke_color)  # Store the box color
+
                 # Check for valid dimensions
                 if width <= 0 or height <= 0:
                     logger.warning(f"Skipping invalid rectangle with zero/negative dimensions: {obj}")
@@ -163,7 +169,8 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                     (left, top + height),
                 ]
                 boxes.append(bbox_display)
-                logger.debug(f"Added box #{i + 1}: top-left=({left},{top}), width={width}, height={height}")
+                logger.debug(
+                    f"Added box #{i + 1}: top-left=({left},{top}), width={width}, height={height}, color={stroke_color}")
 
                 # Display info (Optional)
                 with st.expander(f"Box #{i + 1} (Displayed Coords)", expanded=False):
@@ -177,6 +184,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                     with cols[1]:
                         st.text(f"Width: {width}px")
                         st.text(f"Height: {height}px")
+                        st.text(f"Color: {stroke_color}")  # Display the color
                         # Show estimated original coordinates
                         orig_tl_x = int(round(bbox_display[0][0] * scale_factor))
                         orig_tl_y = int(round(bbox_display[0][1] * scale_factor))
@@ -188,6 +196,6 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
     except Exception as e:
         logger.error(f"Error during canvas processing: {str(e)}", exc_info=True)
         st.error(f"Error during canvas processing for {image_path}: {str(e)}")
-        return [], 1.0, None  # Return empty list and default scale on error
+        return [], 1.0, None, []  # Return empty lists and default scale on error
 
-    return boxes, scale_factor, displayed_image
+    return boxes, scale_factor, displayed_image, box_colors

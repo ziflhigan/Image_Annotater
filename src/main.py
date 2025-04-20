@@ -47,6 +47,7 @@ st.set_page_config(
 # Extended state: Added flags for disabling buttons during processing
 default_keys = {
     "rects": [],  # Drawn boxes (display coords)
+    "rect_colors": [],  # Colors for drawn boxes
     "schema": None,  # Current FixedSchema object for the displayed image
     "selected_image_path": None,  # Path selected via sidebar button click (transient)
     "current_image_path": None,  # Path being actively processed/displayed
@@ -61,6 +62,7 @@ default_keys = {
     "error_messages": [],  # Store error messages so they don't disappear on rerun
     "box_color": "#FF0000",  # Default color for bounding boxes
 }
+
 for key, default_value in default_keys.items():
     if key not in st.session_state:
         st.session_state[key] = default_value
@@ -136,7 +138,7 @@ def check_and_load_annotation(img_path: str) -> bool:
     return loaded
 
 
-def handle_confirm_annotation(img_path: str, scaled_back_boxes: List[BBox], rotated_img=None) -> Optional[VLMSFTData]:
+def handle_confirm_annotation(img_path: str, scaled_back_boxes: List[BBox], box_colors: List[str], rotated_img=None) -> Optional[VLMSFTData]:
     """Handle Confirm: create/update schema, save schema & image (using filename stem)."""
     st.session_state.last_action_time = time.time()
     saved_schema_obj = None
@@ -193,12 +195,13 @@ def handle_confirm_annotation(img_path: str, scaled_back_boxes: List[BBox], rota
         save_image_copy = True  # Always save copy on confirm for now
         if save_image_copy:
             try:
-                # Pass the rotated image if available
+                # Pass the rotated image if available and colors
                 rot_angle = st.session_state.rotation_angle if rotated_img else 0
                 saved_img_path = save_annotated_image(
                     img_path_str,
                     schema_obj.image_id,
                     scaled_back_boxes,
+                    box_colors,  # Pass the box colors
                     rotated_img,
                     rot_angle
                 )
@@ -369,6 +372,7 @@ def main():
         # Reset state for the new image
         st.session_state.schema = None
         st.session_state.rects = []
+        st.session_state.rect_colors = []  # Reset colors
         st.session_state.rotation_angle = 0
         st.session_state.image_scale_factor = 1.0
         st.session_state.displayed_image = None
@@ -459,6 +463,7 @@ def main():
                         f"Rotating image 90° clockwise, angle: {st.session_state.rotation_angle} -> {(st.session_state.rotation_angle + 90) % 360}")
                     st.session_state.rotation_angle = (st.session_state.rotation_angle + 90) % 360
                     st.session_state.rects = []  # Clear boxes on rotation
+                    st.session_state.rect_colors = []  # Clear colors on rotation
                     st.session_state.displayed_image = None  # Reset displayed image on rotation
                     st.warning("Bounding boxes cleared due to rotation.")
                     st.rerun()  # Rerun needed to redraw canvas rotated
@@ -472,19 +477,21 @@ def main():
                 # (e.g., after QA selection) and no new boxes have been drawn
                 if st.session_state.displayed_image is not None and not st.session_state.qa_pairs:
                     # Use the existing image but still allow drawing on it
-                    boxes_display, scale_factor, displayed_image = draw_canvas(
+                    boxes_display, scale_factor, displayed_image, box_colors = draw_canvas(
                         current_img_path,
                         st.session_state.rotation_angle
                     )
                     st.session_state.image_scale_factor = scale_factor
                     st.session_state.rects = boxes_display
+                    st.session_state.rect_colors = box_colors  # Store colors
+                    st.session_state.displayed_image = displayed_image
 
                     # Only update the displayed_image if we got a new one
                     if displayed_image is not None:
                         st.session_state.displayed_image = displayed_image
                 else:
                     # Normal flow - draw canvas fresh
-                    boxes_display, scale_factor, displayed_image = draw_canvas(
+                    boxes_display, scale_factor, displayed_image, box_colors = draw_canvas(
                         current_img_path,
                         st.session_state.rotation_angle
                     )
@@ -509,7 +516,8 @@ def main():
                     logger.error(
                         f"State inconsistency: Schema ID {current_schema.image_id} ≠ Image stem {current_img_stem}")
                     add_error(
-                        f"State inconsistency: Loaded schema ID '{current_schema.image_id}' does not match current image stem '{current_img_stem}'. Please re-select image.")
+                        f"State inconsistency: Loaded schema ID '{current_schema.image_id}' does not match current "
+                        f"image stem '{current_img_stem}'. Please re-select image.")
                     st.stop()  # Prevent further processing with inconsistent state
 
                 # --- Schema Editor ---
@@ -554,15 +562,17 @@ def main():
 
                     try:
                         current_drawn_boxes = st.session_state.rects
+                        current_box_colors = st.session_state.rect_colors  # Get stored colors
                         current_scale = st.session_state.image_scale_factor
                         scaled_back_boxes = get_scaled_boxes(current_drawn_boxes, current_scale)
 
                         # Show pending indicator
                         with st.spinner("Processing annotation..."):
-                            # Pass the displayed (possibly rotated) image
+                            # Pass the displayed image and colors
                             new_or_updated_schema = handle_confirm_annotation(
                                 current_img_path,
                                 scaled_back_boxes,
+                                current_box_colors,  # Pass colors
                                 st.session_state.displayed_image
                             )
 
