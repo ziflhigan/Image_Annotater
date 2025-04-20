@@ -14,12 +14,11 @@ from utils.file_utils import (
     get_annotated_image_stems,  # Use stem-based check
     rename_dataset_files_to_uuid  # Import renaming function
 )
+from utils.logger import get_logger
 
+# Get logger for this module
+logger = get_logger("sidebar")
 
-# No longer need uuid here unless for the button logic, keep it for now
-
-
-# No longer need get_annotated_image_uuids
 
 def image_selector(search_term: str, selected_filter: str) -> None:
     """Displays hierarchical image list, handles selection, includes rename button."""
@@ -27,12 +26,8 @@ def image_selector(search_term: str, selected_filter: str) -> None:
     # Initialize session state keys if they don't exist
     if "selected_image_path" not in st.session_state:
         st.session_state.selected_image_path = None
-    # No longer need UUID state here
-    # if "image_path_to_uuid" not in st.session_state: ...
-    # if "current_image_uuid" not in st.session_state: ...
 
-    print("--- image_selector --- Start")  # DEBUG
-    print(f"    Received search_term='{search_term}', selected_filter='{selected_filter}'")  # DEBUG
+    logger.debug(f"Image selector called with search_term='{search_term}', filter='{selected_filter}'")
 
     # --- Display Utilities at the top ---
     st.sidebar.markdown("---")
@@ -42,22 +37,24 @@ def image_selector(search_term: str, selected_filter: str) -> None:
     with utilities_col1:
         rename_tooltip = "WARNING: Renames original dataset images and attempts to update annotations. BACK UP FIRST!"
         if st.button("Rename to UUIDs", help=rename_tooltip):
-            print("--- Rename Button Clicked ---")  # DEBUG
+            logger.info("Rename to UUIDs button clicked")
             st.info("Starting renaming process... This may take a while.")
             progress_bar = st.sidebar.progress(0.0)
             try:
                 # Call the renaming function from file_utils
                 success, annot_updated, errors = rename_dataset_files_to_uuid(progress_bar)
                 progress_bar.progress(1.0)  # Ensure progress bar reaches 100%
-                st.success(f"Renaming finished! {success} images renamed, {annot_updated} annotations updated.")
                 if errors > 0:
-                    st.error(f"{errors} errors occurred during renaming. Check console logs.")
+                    logger.warning(f"Renaming completed with {errors} errors")
+                    st.error(f"{errors} errors occurred during renaming. Check logs for details.")
                 else:
+                    logger.info(f"Renaming completed successfully: {success} images, {annot_updated} annotations")
                     st.success("Renaming completed successfully.")
                 # Force a rerun to refresh the sidebar with new filenames
                 st.info("Refreshing file list...")
                 st.rerun()
             except Exception as e:
+                logger.error(f"Error during renaming: {e}", exc_info=True)
                 st.error(f"An error occurred during renaming: {e}")
                 progress_bar.progress(1.0)  # Clear progress bar on error
 
@@ -65,6 +62,7 @@ def image_selector(search_term: str, selected_filter: str) -> None:
     with utilities_col2:
         # Refresh button
         if st.button("Refresh List", help="Refresh the file list"):
+            logger.debug("Refresh list button clicked")
             st.rerun()
 
     st.sidebar.markdown("---")
@@ -72,13 +70,12 @@ def image_selector(search_term: str, selected_filter: str) -> None:
     # Get all images and annotated status (using stems)
     all_images = list_images()
     annotated_stems = get_annotated_image_stems()  # Get stems of annotated files
+    logger.debug(f"Found {len(all_images)} total images, {len(annotated_stems)} annotated")
 
     # --- Pre-process images: Filter ---
-    # No UUID generation here anymore
     processed_images: List[Tuple[str, str, bool]] = []  # (img_path_str, img_stem, is_annotated)
 
-    print(f"    Processing {len(all_images)} total images found by list_images().")  # DEBUG
-    for i, img_path_str in enumerate(all_images):
+    for img_path_str in all_images:
         img_path_obj = Path(img_path_str)
         img_stem = img_path_obj.stem
 
@@ -88,7 +85,6 @@ def image_selector(search_term: str, selected_filter: str) -> None:
 
         # Check annotation status using stem
         is_annotated = img_stem in annotated_stems
-        # print(f"    Image: {img_path_obj.name}, Stem: {img_stem}, Annotated: {is_annotated}") # DEBUG
 
         # Apply annotation status filter
         filter_passed = (selected_filter == "All" or
@@ -100,33 +96,30 @@ def image_selector(search_term: str, selected_filter: str) -> None:
 
     # --- Group images by hierarchical path ---
     images_by_hierarchy: DefaultDict[str, List[Tuple[str, str, bool]]] = defaultdict(list)
-    # print("\n    Grouping images by hierarchy...") # DEBUG
     for img_path_str, img_stem, is_annotated in processed_images:
         hierarchy_key = derive_full_relative_path(img_path_str)
-        # print(f"        Grouping: Path='{img_path_str}', Key='{hierarchy_key}'") # DEBUG
         if hierarchy_key == "(error_deriving_path)":
-            print(f"        WARNING: Skipping image due to path derivation error: {img_path_str}")
+            logger.warning(f"Skipping image due to path derivation error: {img_path_str}")
             continue
         if hierarchy_key == "":
             hierarchy_key = "(Root Level)"
 
         images_by_hierarchy[hierarchy_key].append((img_path_str, img_stem, is_annotated))
 
-    # print(f"\n    Found {len(images_by_hierarchy)} hierarchical groups.") # DEBUG
+    logger.debug(f"Grouped images into {len(images_by_hierarchy)} hierarchical groups")
 
     # --- Display Hierarchical Tree ---
     if not processed_images:
+        logger.info("No images found matching criteria")
         st.sidebar.warning("No images found matching your criteria.")
     else:
         sorted_categories = sorted(images_by_hierarchy.keys())
-        # print("\n    Displaying expanders...") # DEBUG
 
         for category_path in sorted_categories:
             images_in_category = images_by_hierarchy[category_path]
             images_in_category.sort(key=lambda item: Path(item[0]).name)  # Sort by filename
 
             expander_label = f"{category_path} ({len(images_in_category)})"
-            # print(f"    Creating Expander: '{expander_label}'") # DEBUG
 
             # Default to collapsed (expanded=False)
             with st.sidebar.expander(expander_label, expanded=False):
@@ -137,16 +130,8 @@ def image_selector(search_term: str, selected_filter: str) -> None:
                     # Use image path string in button key for uniqueness until renamed
                     button_key = f"btn_{img_path_str}"
                     if st.button(f"{status_icon} {img_name}", key=button_key, use_container_width=True):
-                        print(f"\n--- BUTTON CLICKED ---")  # DEBUG
-                        print(f"    Button Key: {button_key}")  # DEBUG
-                        print(f"    Image Name: {img_name}")  # DEBUG
-                        print(f"    Assigning selected_image_path = '{img_path_str}'")  # DEBUG
+                        logger.info(f"Image selected: {img_name}")
                         st.session_state.selected_image_path = img_path_str
-                        # No UUID assignment needed here anymore
-                        # st.session_state.current_image_uuid = img_uuid
-                        # ...
-
-                        print(f"    State AFTER click: selected_path='{st.session_state.selected_image_path}'")  # DEBUG
 
     # --- Display Statistics Below Tree ---
     st.sidebar.markdown("---")  # Separator
@@ -160,5 +145,3 @@ def image_selector(search_term: str, selected_filter: str) -> None:
          - Use canvas toolbar for drawing/deleting boxes.
          - Use buttons for Confirm / Generate Q/A.
          """)
-
-    print("--- image_selector --- End")  # DEBUG

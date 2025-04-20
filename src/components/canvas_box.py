@@ -6,15 +6,28 @@ import math
 from typing import List, Tuple, Optional
 
 import streamlit as st
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from streamlit_drawable_canvas import st_canvas
-
 # Import the image loader utility
 from utils.file_utils import load_and_convert_image
+from utils.logger import get_canvas_logger
+
+logger = get_canvas_logger()
 
 BBox = List[Tuple[int, int]]
 
 MAX_CANVAS_WIDTH = 1200
+
+# Default color choices
+DEFAULT_COLORS = {
+    "Red": "#FF0000",
+    "Green": "#00FF00",
+    "Blue": "#0000FF",
+    "Yellow": "#FFFF00",
+    "Purple": "#8A2BE2",
+    "Orange": "#FFA500",
+    "Cyan": "#00FFFF"
+}
 
 
 def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, Optional[Image.Image]]:
@@ -34,21 +47,55 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
     scale_factor = 1.0
     displayed_image = None
 
+    # Color selection
+    if "box_color" not in st.session_state:
+        st.session_state.box_color = "#FF0000"  # Default red
+
+    color_cols = st.columns([1, 3, 1])
+    with color_cols[0]:
+        st.write("Box Color:")
+
+    with color_cols[1]:
+        selected_color_name = st.selectbox(
+            "Choose color",
+            options=list(DEFAULT_COLORS.keys()),
+            index=list(DEFAULT_COLORS.values()).index(st.session_state.box_color)
+            if st.session_state.box_color in DEFAULT_COLORS.values()
+            else 0,
+            label_visibility="collapsed",
+            key=f"color_select_{image_path}"
+        )
+        st.session_state.box_color = DEFAULT_COLORS[selected_color_name]
+
+    with color_cols[2]:
+        st.color_picker(
+            "Custom:",
+            value=st.session_state.box_color,
+            key=f"color_picker_{image_path}",
+            on_change=lambda: setattr(st.session_state, "box_color", st.session_state[f"color_picker_{image_path}"])
+        )
+
+    logger.debug(f"Color for boxes set to: {st.session_state.box_color}")
+
     # Load image using the utility function (handles conversion to RGB)
+    logger.info(f"Loading image: {image_path}")
     img_original = load_and_convert_image(image_path)
 
     if img_original is None:
         # Error already shown by load_and_convert_image
+        logger.error(f"Failed to load image: {image_path}")
         return [], 1.0, None  # Return empty list and default scale on load error
 
     try:
         # --- Rotation ---
         if rotation_angle != 0:
             img_rotated = img_original.rotate(-rotation_angle, expand=True, resample=Image.Resampling.BILINEAR)
+            logger.debug(f"Rotated image by {rotation_angle}°")
         else:
             img_rotated = img_original
 
         w_orig, h_orig = img_rotated.size
+        logger.debug(f"Rotated image dimensions: {w_orig}×{h_orig}")
 
         # --- Resizing ---
         display_w = w_orig
@@ -61,9 +108,11 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                 img_display = img_rotated.resize((display_w, display_h), Image.Resampling.LANCZOS)
             except AttributeError:  # Older Pillow
                 img_display = img_rotated.resize((display_w, display_h), Image.LANCZOS)
+            logger.debug(f"Resized for display: {display_w}×{display_h}, scale factor: {scale_factor}")
         else:
             img_display = img_rotated
             scale_factor = 1.0
+            logger.debug("No resizing needed")
 
         # Keep track of the displayed image for saving
         displayed_image = img_rotated  # This is the full-size rotated image
@@ -74,9 +123,9 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
 
         # --- Canvas ---
         canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.1)",
+            fill_color=f"rgba{tuple(int(st.session_state.box_color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)) + (0.1,)}",
             stroke_width=2,
-            stroke_color="#FF0000",
+            stroke_color=st.session_state.box_color,
             background_image=img_display,  # Use the loaded, rotated, resized image
             update_streamlit=True,
             height=display_h,
@@ -88,6 +137,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
 
         # --- Extract Rectangles ---
         if canvas_result.json_data and canvas_result.json_data.get("objects"):
+            logger.debug(f"Canvas data received with {len(canvas_result.json_data['objects'])} objects")
             st.subheader(
                 f"📏 Bounding Boxes ({len(canvas_result.json_data['objects'])}) - Coords relative to displayed image")
             valid_objects = [obj for obj in canvas_result.json_data["objects"] if obj["type"] == "rect"]
@@ -101,6 +151,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
 
                 # Check for valid dimensions
                 if width <= 0 or height <= 0:
+                    logger.warning(f"Skipping invalid rectangle with zero/negative dimensions: {obj}")
                     st.warning(f"Skipping invalid rectangle (zero/negative size) from canvas data: {obj}")
                     continue
 
@@ -112,6 +163,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                     (left, top + height),
                 ]
                 boxes.append(bbox_display)
+                logger.debug(f"Added box #{i + 1}: top-left=({left},{top}), width={width}, height={height}")
 
                 # Display info (Optional)
                 with st.expander(f"Box #{i + 1} (Displayed Coords)", expanded=False):
@@ -134,6 +186,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                         st.text(f"Approx Orig BR: ({orig_br_x}, {orig_br_y})")
 
     except Exception as e:
+        logger.error(f"Error during canvas processing: {str(e)}", exc_info=True)
         st.error(f"Error during canvas processing for {image_path}: {str(e)}")
         return [], 1.0, None  # Return empty list and default scale on error
 
