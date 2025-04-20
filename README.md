@@ -5,6 +5,9 @@ Image Annotater is a Streamlit-based application for annotating images with boun
 
 ![Image Annotater Screenshot](assets/img.png)
 
+# Note
+Please use light mode in your browser! As dark mode is not supported yet.
+
 ## Features
 
 - 📂 **Hierarchical file explorer** for navigating your image dataset
@@ -15,6 +18,8 @@ Image Annotater is a Streamlit-based application for annotating images with boun
 - 🔄 **Image rotation** for better annotation angles
 - 🔍 **Search and filter** capabilities for quick navigation
 - 🆔 **Batch renaming** to UUIDs for better tracking
+- 🔍 **Image zoom in/out** supported natively so no need to zoom in/out the browser to see the entire 
+image without scrolling 
 
 ## Installation
 
