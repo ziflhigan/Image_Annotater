@@ -16,7 +16,7 @@ logger = get_canvas_logger()
 
 BBox = List[Tuple[int, int]]
 
-MAX_CANVAS_WIDTH = 1200
+MAX_CANVAS_WIDTH = 1600
 
 # Default color choices
 DEFAULT_COLORS = {
@@ -99,13 +99,39 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
         w_orig, h_orig = img_rotated.size
         logger.debug(f"Rotated image dimensions: {w_orig}×{h_orig}")
 
-        # --- Resizing ---
-        display_w = w_orig
-        display_h = h_orig
-        if w_orig > MAX_CANVAS_WIDTH:
-            scale_factor = w_orig / MAX_CANVAS_WIDTH
-            display_w = MAX_CANVAS_WIDTH
-            display_h = math.ceil(h_orig / scale_factor)
+        # --- user-controlled zoom ---
+        # Default zoom so the image fits inside MAX_CANVAS_WIDTH
+        autofit_zoom = min(100, int(100 * MAX_CANVAS_WIDTH / w_orig))
+
+        # Initialize zoom in session state if not present
+        zoom_key = f"zoom_slider_{image_path}_{rotation_angle}"
+        if zoom_key not in st.session_state:
+            st.session_state[zoom_key] = autofit_zoom
+
+        # Create two columns for zoom controls
+        zoom_cols = st.columns([3, 1])
+
+        with zoom_cols[0]:
+            zoom_pct = st.slider(
+                "Zoom (%)",
+                min_value=10,
+                max_value=200,
+                value=st.session_state[zoom_key],
+                step=5,
+                key=zoom_key
+            )
+
+        with zoom_cols[1]:
+            if st.button("Fit to window", key=f"fit_btn_{image_path}_{rotation_angle}"):
+                st.session_state[zoom_key] = autofit_zoom
+                st.rerun()
+
+        # --- Resizing based on zoom percentage ---
+        display_w = int(w_orig * zoom_pct / 100)
+        display_h = int(h_orig * zoom_pct / 100)
+        scale_factor = w_orig / display_w  # This maintains the same logic as before
+
+        if zoom_pct != 100:
             try:
                 img_display = img_rotated.resize((display_w, display_h), Image.Resampling.LANCZOS)
             except AttributeError:  # Older Pillow
@@ -114,7 +140,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
         else:
             img_display = img_rotated
             scale_factor = 1.0
-            logger.debug("No resizing needed")
+            logger.debug("No resizing needed (100% zoom)")
 
         # Keep track of the displayed image for saving
         displayed_image = img_rotated  # This is the full-size rotated image
@@ -133,7 +159,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
             height=display_h,
             width=display_w,
             drawing_mode="rect",
-            key=f"canvas_{image_path}_{rotation_angle}",  # Key includes path and angle
+            key=f"canvas_{image_path}_{rotation_angle}_{zoom_pct}",  # Key includes path, angle and zoom
             display_toolbar=True,
         )
 
