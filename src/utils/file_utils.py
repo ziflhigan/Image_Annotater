@@ -13,10 +13,10 @@ from PIL import Image, ImageDraw, UnidentifiedImageError
 
 # Assuming schema_utils is in the same directory or accessible via python path
 try:
-    from .schema_utils import FixedSchema, BBox
+    from .schema_utils import VLMSFTData, BBox
 except ImportError:
     # Fallback if running script directly might need path adjustment
-    from schema_utils import FixedSchema, BBox
+    from schema_utils import VLMSFTData, BBox
 
 DATASET_ROOT = Path("dataset").resolve()  # Resolve to absolute path
 ANNOT_ROOT = Path("annotated_dataset").resolve()
@@ -113,7 +113,8 @@ def _get_output_subdir(base_prefix: str, relative_structure: str) -> Path:
     return output_dir
 
 
-def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox]) -> Path:
+def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox], rotated_image=None,
+                         rotation_angle: int = 0) -> Path:
     """
     Loads original image, converts to JPG, draws rectangles,
     and saves to annotated_<category>/.../<image_id>.jpg using nested structure.
@@ -122,12 +123,14 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
         original_path_str: Relative path string to the original image.
         image_id: The ID (original stem or UUID) used for the output filename.
         rects: List of bounding boxes (scaled to original dimensions).
+        rotated_image: Optional pre-rotated PIL image to use instead of loading the original.
+        rotation_angle: Angle of rotation to apply if rotated_image not provided.
 
     Returns: Path to the saved annotated JPG image.
     Raises: FileNotFoundError, UnidentifiedImageError, Exception.
     """
     original_path = Path(original_path_str)
-    if not original_path.exists():
+    if not original_path.exists() and rotated_image is None:
         raise FileNotFoundError(f"Original image not found: {original_path_str}")
 
     relative_structure = derive_full_relative_path(original_path)
@@ -141,9 +144,22 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
     print(f"    Relative Structure: {relative_structure}")  # DEBUG
     print(f"    Output Dir: {out_dir}")  # DEBUG
     print(f"    Output Path: {out_path}")  # DEBUG
+    print(f"    Rotation Angle: {rotation_angle}")  # DEBUG
+    print(f"    Using Provided Rotated Image: {rotated_image is not None}")  # DEBUG
 
     try:
-        img = Image.open(original_path).convert("RGB")
+        # Use provided rotated image if available, otherwise load and rotate
+        if rotated_image is not None:
+            img = rotated_image
+            print(f"    Using provided rotated image: {img.size}")  # DEBUG
+        else:
+            img = Image.open(original_path).convert("RGB")
+            if rotation_angle != 0:
+                img = img.rotate(-rotation_angle, expand=True, resample=Image.Resampling.BILINEAR)
+                print(f"    Applied rotation of {rotation_angle}° to image: {img.size}")  # DEBUG
+            else:
+                print(f"    Loaded original image without rotation: {img.size}")  # DEBUG
+
         if rects:
             draw = ImageDraw.Draw(img)
             colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
@@ -163,7 +179,7 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
         raise
 
 
-def save_schema(schema: FixedSchema) -> Path:
+def save_schema(schema: VLMSFTData) -> Path:
     """
     Save schema to JSON file named <image_id>.json in schema_<category>/.../
     using nested structure derived from the original image path.
@@ -262,6 +278,29 @@ def load_and_convert_image(image_path: str | Path) -> Optional[Image.Image]:
         return img
     except Exception as e:
         st.error(f"Error loading image {image_path}: {e}")
+        return None
+
+
+def get_annotated_image_path(original_path: str, image_id: str) -> Optional[Path]:
+    """Get the path to an annotated image if it exists.
+
+    Args:
+        original_path: Path to the original image
+        image_id: Image ID (stem)
+
+    Returns:
+        Path to annotated image if exists, None otherwise
+    """
+    try:
+        relative_structure = derive_full_relative_path(original_path)
+        out_dir = _get_output_subdir("annotated", relative_structure)
+        out_path = out_dir / f"{image_id}.jpg"
+
+        if out_path.exists():
+            return out_path
+        return None
+    except Exception as e:
+        print(f"Error finding annotated image: {e}")
         return None
 
 

@@ -34,6 +34,41 @@ def image_selector(search_term: str, selected_filter: str) -> None:
     print("--- image_selector --- Start")  # DEBUG
     print(f"    Received search_term='{search_term}', selected_filter='{selected_filter}'")  # DEBUG
 
+    # --- Display Utilities at the top ---
+    st.sidebar.markdown("---")
+    st.sidebar.header("Dataset Utilities")
+    utilities_col1, utilities_col2 = st.sidebar.columns(2)
+
+    with utilities_col1:
+        rename_tooltip = "WARNING: Renames original dataset images and attempts to update annotations. BACK UP FIRST!"
+        if st.button("Rename to UUIDs", help=rename_tooltip):
+            print("--- Rename Button Clicked ---")  # DEBUG
+            st.info("Starting renaming process... This may take a while.")
+            progress_bar = st.sidebar.progress(0.0)
+            try:
+                # Call the renaming function from file_utils
+                success, annot_updated, errors = rename_dataset_files_to_uuid(progress_bar)
+                progress_bar.progress(1.0)  # Ensure progress bar reaches 100%
+                st.success(f"Renaming finished! {success} images renamed, {annot_updated} annotations updated.")
+                if errors > 0:
+                    st.error(f"{errors} errors occurred during renaming. Check console logs.")
+                else:
+                    st.success("Renaming completed successfully.")
+                # Force a rerun to refresh the sidebar with new filenames
+                st.info("Refreshing file list...")
+                st.rerun()
+            except Exception as e:
+                st.error(f"An error occurred during renaming: {e}")
+                progress_bar.progress(1.0)  # Clear progress bar on error
+
+    # Add another utility button in the second column if needed
+    with utilities_col2:
+        # Refresh button
+        if st.button("Refresh List", help="Refresh the file list"):
+            st.rerun()
+
+    st.sidebar.markdown("---")
+
     # Get all images and annotated status (using stems)
     all_images = list_images()
     annotated_stems = get_annotated_image_stems()  # Get stems of annotated files
@@ -92,17 +127,9 @@ def image_selector(search_term: str, selected_filter: str) -> None:
 
             expander_label = f"{category_path} ({len(images_in_category)})"
             # print(f"    Creating Expander: '{expander_label}'") # DEBUG
-            # Determine if expander should be expanded by default (e.g., if it contains the selected image)
-            # Default to True for simplicity now, could be made smarter
-            is_expanded = True
-            # Check if the currently selected image belongs to this category path
-            # This logic needs refinement if selection persistence across runs is needed
-            # if st.session_state.selected_image_path:
-            #      selected_cat_path = derive_full_relative_path(st.session_state.selected_image_path)
-            #      if selected_cat_path == "" : selected_cat_path = "(Root Level)"
-            #      is_expanded = (category_path == selected_cat_path)
 
-            with st.sidebar.expander(expander_label, expanded=is_expanded):  # Default expanded
+            # Default to collapsed (expanded=False)
+            with st.sidebar.expander(expander_label, expanded=False):
                 for img_path_str, img_stem, is_annotated in images_in_category:
                     img_name = Path(img_path_str).name
                     status_icon = "✅" if is_annotated else "⚪"
@@ -121,7 +148,7 @@ def image_selector(search_term: str, selected_filter: str) -> None:
 
                         print(f"    State AFTER click: selected_path='{st.session_state.selected_image_path}'")  # DEBUG
 
-    # --- Display Utilities Below Tree ---
+    # --- Display Statistics Below Tree ---
     st.sidebar.markdown("---")  # Separator
 
     # Image count statistics
@@ -133,31 +160,5 @@ def image_selector(search_term: str, selected_filter: str) -> None:
          - Use canvas toolbar for drawing/deleting boxes.
          - Use buttons for Confirm / Generate Q/A.
          """)
-
-    # --- Renaming Button ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Dataset Utilities")
-    st.sidebar.warning("Use with caution!")
-    if st.sidebar.button("🧬 Rename Dataset Files to UUIDs",
-                         help="WARNING: Renames original dataset images and attempts to update annotations. "
-                              "BACK UP FIRST!"):
-        print("--- Rename Button Clicked ---")  # DEBUG
-        st.sidebar.info("Starting renaming process... This may take a while.")
-        progress_bar = st.sidebar.progress(0.0)
-        try:
-            # Call the renaming function from file_utils
-            success, annot_updated, errors = rename_dataset_files_to_uuid(progress_bar)
-            progress_bar.progress(1.0)  # Ensure progress bar reaches 100%
-            st.sidebar.success(f"Renaming finished! {success} images renamed, {annot_updated} annotations updated.")
-            if errors > 0:
-                st.sidebar.error(f"{errors} errors occurred during renaming. Check console logs.")
-            else:
-                st.sidebar.success("Renaming completed successfully.")
-            # Force a rerun to refresh the sidebar with new filenames
-            st.sidebar.info("Refreshing file list...")
-            st.rerun()
-        except Exception as e:
-            st.sidebar.error(f"An error occurred during renaming: {e}")
-            progress_bar.progress(1.0)  # Clear progress bar on error
 
     print("--- image_selector --- End")  # DEBUG

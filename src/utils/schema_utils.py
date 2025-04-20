@@ -25,12 +25,13 @@ except ImportError:
 class LanguageInfo(BaseModel):
     source: List[Literal["ms", "en"]] = Field(default=["ms", "en"],
                                               description="Languages present in text_ms / text_en")
-    target: Optional[List[Literal["ms", "en"]]] = None
+    target: List[Literal["ms", "en"]] = Field(default=["ms", "en"],
+                                              description="Languages present in text_ms / text_en")
 
 
 class Metadata(BaseModel):
     license: Optional[str] = "CC-BY"
-    annotator_id: Optional[str] = None
+    annotator_id: Optional[str] = "a001"
     language_quality_score: Optional[float] = Field(None, ge=0.0, le=5.0)
     timestamp: datetime = Field(default_factory=datetime.now)
 
@@ -40,7 +41,7 @@ class Metadata(BaseModel):
 BBox = List[Tuple[int, int]]  # 4 corner points (x,y)
 
 
-class FixedSchema(BaseModel):
+class VLMSFTData(BaseModel):
     # Allow Pydantic extra fields if needed, though generally avoided
     model_config = ConfigDict(extra='ignore')
 
@@ -89,13 +90,13 @@ class FixedSchema(BaseModel):
         path.write_text(json_str, encoding="utf‑8")
 
     @classmethod
-    def load(cls, path: Path | str) -> "FixedSchema":
+    def load(cls, path: Path | str) -> "VLMSFTData":
         """Loads a schema model from a JSON file."""
         # Use model_validate_json for V2
         return cls.model_validate_json(Path(path).read_text(encoding="utf-8"))
 
     @classmethod
-    def from_dict(cls, data: dict) -> "FixedSchema":
+    def from_dict(cls, data: dict) -> "VLMSFTData":
         """Loads a schema model from a dictionary."""
         # Use model_validate for V2 (replaces parse_obj)
         return cls.model_validate(data)

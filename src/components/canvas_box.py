@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import streamlit as st
 from PIL import Image, UnidentifiedImageError
@@ -17,7 +17,7 @@ BBox = List[Tuple[int, int]]
 MAX_CANVAS_WIDTH = 1200
 
 
-def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float]:
+def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, Optional[Image.Image]]:
     """Enhanced canvas using load_and_convert_image, with resizing, rotation, and coordinates.
 
     Args:
@@ -28,16 +28,18 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float]:
         Tuple containing:
             - List of bounding boxes relative to the *displayed* canvas.
             - Scale factor applied (original_width / displayed_width).
+            - The rotated image (PIL.Image) that was displayed or None if error.
     """
     boxes: List[BBox] = []
     scale_factor = 1.0
+    displayed_image = None
 
     # Load image using the utility function (handles conversion to RGB)
     img_original = load_and_convert_image(image_path)
 
     if img_original is None:
         # Error already shown by load_and_convert_image
-        return [], 1.0  # Return empty list and default scale on load error
+        return [], 1.0, None  # Return empty list and default scale on load error
 
     try:
         # --- Rotation ---
@@ -62,6 +64,9 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float]:
         else:
             img_display = img_rotated
             scale_factor = 1.0
+
+        # Keep track of the displayed image for saving
+        displayed_image = img_rotated  # This is the full-size rotated image
 
         st.caption(f"Original dimensions: {img_original.width}×{img_original.height} | "
                    f"Displayed as: {display_w}×{display_h} (Rotation: {rotation_angle}°, "
@@ -130,6 +135,6 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float]:
 
     except Exception as e:
         st.error(f"Error during canvas processing for {image_path}: {str(e)}")
-        return [], 1.0  # Return empty list and default scale on error
+        return [], 1.0, None  # Return empty list and default scale on error
 
-    return boxes, scale_factor
+    return boxes, scale_factor, displayed_image
