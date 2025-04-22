@@ -36,7 +36,7 @@ image without scrolling
    cd image_annotater
    ```
 
-2. Create and activate a virtual environment (recommended):
+2. Create and activate a virtual environment (recommended) (**Conda env is recommended**):
    ```bash
    python -m venv venv
    # On Windows
