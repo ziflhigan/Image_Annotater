@@ -10,6 +10,8 @@ Please generate 3-5 different question-answer pairs for the image, including AT 
 - instruction (instruction-following with the image)
 
 Important: If the image attached has bounding box(ex), generate AT LEAST ONE the Q/A pairs around it/them.
+If no bounding box(es) is/are provided, generate at least two "imagination Q/A" assume there is bounding box around,
+so that I can draw bounding box(es) accordingly
 
 For each QA pair, consider the following rules based on existing text fields:
 1. If both text_ms AND text_en are provided in the schema, use those exact texts as-is.
