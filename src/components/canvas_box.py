@@ -49,6 +49,34 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
     scale_factor = 1.0
     displayed_image = None
 
+    # Initialize drawing mode in session state if not present
+    mode_key = f"drawing_mode_{image_path}"
+    if mode_key not in st.session_state:
+        st.session_state[mode_key] = "rect"  # Default to rectangle drawing mode
+
+    # Drawing mode selection (Add this at the top of the function)
+    mode_cols = st.columns([1, 3])
+    with mode_cols[0]:
+        st.write("Mode:")
+
+    with mode_cols[1]:
+        mode_options = {
+            "Draw Rectangles": "rect",
+            "Select & Edit": "transform"
+        }
+        selected_mode_name = st.radio(
+            "Canvas Mode",
+            options=list(mode_options.keys()),
+            index=0 if st.session_state[mode_key] == "rect" else 1,
+            horizontal=True,
+            label_visibility="collapsed",
+            key=f"mode_select_{image_path}"
+        )
+        # Update session state with the actual mode value
+        st.session_state[mode_key] = mode_options[selected_mode_name]
+
+    logger.debug(f"Canvas mode set to: {st.session_state[mode_key]}")
+
     # Color selection
     if "box_color" not in st.session_state:
         st.session_state.box_color = "#FF0000"  # Default red
@@ -121,11 +149,6 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                 key=zoom_key
             )
 
-        with zoom_cols[1]:
-            if st.button("Fit to window", key=f"fit_btn_{image_path}_{rotation_angle}"):
-                st.session_state[zoom_key] = autofit_zoom
-                st.rerun()
-
         # --- Resizing based on zoom percentage ---
         display_w = int(w_orig * zoom_pct / 100)
         display_h = int(h_orig * zoom_pct / 100)
@@ -150,6 +173,12 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                    f"Scale: {1 / scale_factor:.2f}x)")
 
         # --- Canvas ---
+        # Use the drawing mode from session state
+        current_drawing_mode = st.session_state[mode_key]
+
+        # DON'T include drawing mode in canvas key to preserve objects when switching modes
+        canvas_key = f"canvas_{image_path}_{rotation_angle}_{zoom_pct}"
+
         canvas_result = st_canvas(
             fill_color=f"rgba{tuple(int(st.session_state.box_color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)) + (0.1,)}",
             stroke_width=2,
@@ -158,8 +187,8 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
             update_streamlit=True,
             height=display_h,
             width=display_w,
-            drawing_mode="rect",
-            key=f"canvas_{image_path}_{rotation_angle}_{zoom_pct}",  # Key includes path, angle and zoom
+            drawing_mode=current_drawing_mode,  # Use the mode from session state
+            key=canvas_key,  # Key includes path, angle, zoom and drawing mode
             display_toolbar=True,
         )
 
