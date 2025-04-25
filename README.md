@@ -85,7 +85,7 @@ streamlit run src/main.py
 
 This video demonstrates how to use the "Rename to UUIDs" button in the sidebar to convert all image filenames to unique identifiers for better tracking and organization.
 
-<video width="630" height="300" src="https://github.com/ziflhigan/Image_Annotater/blob/main/assets/rename_demo.mp4" controls></video>
+https://github.com/user-attachments/assets/99d5a82b-2f17-4c98-a434-9afa9145990a
 
 > ⚠️ **IMPORTANT**: Always back up your dataset before using the rename function, as it modifies the original files and cannot be easily undone.
 
