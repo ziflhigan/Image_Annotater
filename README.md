@@ -96,7 +96,7 @@ This video shows how to:
 - Click "Confirm" to generate the default schema
 - Edit schema values including languages, difficulty, and metadata
 
-[▶️ Watch Annotation Demo](https://github.com/ziflhigan/Image_Annotater/blob/main/assets/annotation_demo.mp4)
+https://github.com/user-attachments/assets/85076bf1-3ead-405c-822a-3798245d9d67
 
 ### 3. AI-Generated Question-Answer Pairs
 
@@ -106,7 +106,7 @@ This video demonstrates:
 - Selecting one of the multiple generated Q/A pairs
 - Viewing the updated schema
 
-[▶️ Watch Q/A Generation Demo](https://github.com/ziflhigan/Image_Annotater/blob/main/assets/qa_generation_demo.mp4)
+https://github.com/user-attachments/assets/f673bf66-a51b-43b8-bc39-2d87a1535a5c
 
 ## Folder Structure
 
