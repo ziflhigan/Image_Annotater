@@ -85,7 +85,7 @@ streamlit run src/main.py
 
 This video demonstrates how to use the "Rename to UUIDs" button in the sidebar to convert all image filenames to unique identifiers for better tracking and organization.
 
-[▶️ Watch Rename Demo](assets/rename_demo.mp4)
+[▶️ Watch Rename Demo](https://github.com/ziflhigan/Image_Annotater/blob/main/assets/rename_demo.mp4)
 
 > ⚠️ **IMPORTANT**: Always back up your dataset before using the rename function, as it modifies the original files and cannot be easily undone.
 
@@ -96,7 +96,7 @@ This video shows how to:
 - Click "Confirm" to generate the default schema
 - Edit schema values including languages, difficulty, and metadata
 
-[▶️ Watch Annotation Demo](assets/annotation_demo.mp4)
+[▶️ Watch Annotation Demo](https://github.com/ziflhigan/Image_Annotater/blob/main/assets/annotation_demo.mp4)
 
 ### 3. AI-Generated Question-Answer Pairs
 
@@ -106,7 +106,7 @@ This video demonstrates:
 - Selecting one of the multiple generated Q/A pairs
 - Viewing the updated schema
 
-[▶️ Watch Q/A Generation Demo](assets/qa_generation_demo.mp4)
+[▶️ Watch Q/A Generation Demo](https://github.com/ziflhigan/Image_Annotater/blob/main/assets/qa_generation_demo.mp4)
 
 ## Folder Structure
 
