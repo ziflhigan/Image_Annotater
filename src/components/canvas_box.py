@@ -180,7 +180,9 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
         canvas_key = f"canvas_{image_path}_{rotation_angle}_{zoom_pct}"
 
         # Show a note about the coordinate system
-        st.info("**Note:** Coordinates are shown using bottom-left as origin (0,0)")
+        st.info("**Note:** Coordinates are shown using bottom-left as origin (0,0). The annotated image will be "
+                "saved in local as long as you click 'confirm', don't worry if it disappeared after generation of Q/A."
+                " You can still draw new bbox and click 'confirm' to update")
 
         canvas_result = st_canvas(
             fill_color=f"rgba{tuple(int(st.session_state.box_color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)) + (0.1,)}",
