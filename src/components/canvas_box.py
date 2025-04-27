@@ -179,6 +179,9 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
         # DON'T include drawing mode in canvas key to preserve objects when switching modes
         canvas_key = f"canvas_{image_path}_{rotation_angle}_{zoom_pct}"
 
+        # Show a note about the coordinate system
+        st.info("**Note:** Coordinates are shown using bottom-left as origin (0,0)")
+
         canvas_result = st_canvas(
             fill_color=f"rgba{tuple(int(st.session_state.box_color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)) + (0.1,)}",
             stroke_width=2,
@@ -205,6 +208,7 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                 top = int(obj.get("top", 0))
                 width = int(obj.get("width", 0))
                 height = int(obj.get("height", 0))
+                logger.info("Left: {}, Top: {}, Width: {}, Height: {}".format(left, top, width, height))
 
                 # Get stroke color
                 stroke_color = obj.get("stroke", st.session_state.box_color)
@@ -218,10 +222,10 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
 
                 # Store bbox relative to the *displayed* canvas
                 bbox_display: BBox = [
-                    (left, top),
-                    (left + width, top),
-                    (left + width, top + height),
-                    (left, top + height),
+                    (left, display_h - top),
+                    (left + width, display_h - top),
+                    (left + width, display_h - top - height),
+                    (left, display_h - top - height),
                 ]
                 boxes.append(bbox_display)
                 logger.debug(

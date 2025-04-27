@@ -165,11 +165,17 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
 
         if rects:
             draw = ImageDraw.Draw(img)
+            height = img.height
             # Only use this as fallback if no colors are provided
             default_colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
 
             for i, bbox in enumerate(rects):
                 if len(bbox) == 4:
+                    # Convert from bottom-left to top-left coordinates
+                    converted_bbox = [
+                        (pt[0], height - pt[1]) for pt in bbox
+                    ]
+
                     # Use the provided color if available, otherwise fall back to default colors
                     if rect_colors and i < len(rect_colors):
                         color = rect_colors[i]
@@ -178,7 +184,7 @@ def save_annotated_image(original_path_str: str, image_id: str, rects: List[BBox
                         color = default_colors[i % len(default_colors)]
                         print(f"    Using default color for box #{i + 1}: {color}")  # DEBUG
 
-                    draw.polygon(bbox, outline=color, width=3)
+                    draw.polygon(converted_bbox, outline=color, width=3)
                 else:
                     st.warning(f"Skipping invalid bbox for drawing: {bbox}")
         img.save(out_path, "JPEG", quality=95)
