@@ -179,9 +179,6 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
         # DON'T include drawing mode in canvas key to preserve objects when switching modes
         canvas_key = f"canvas_{image_path}_{rotation_angle}_{zoom_pct}"
 
-        # Show a note about the coordinate system
-        st.info("**Note:** Coordinates are shown using bottom-left as origin (0,0)")
-
         canvas_result = st_canvas(
             fill_color=f"rgba{tuple(int(st.session_state.box_color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)) + (0.1,)}",
             stroke_width=2,
@@ -219,23 +216,19 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                     st.warning(f"Skipping invalid rectangle (zero/negative size) from canvas data: {obj}")
                     continue
 
-                # Flip y-coordinates to use bottom-left as origin
-                # The canvas height is display_h
-                bottom_y = display_h - top - height  # Calculate bottom y-coordinate
-
-                # Store bbox relative to the *displayed* canvas with bottom-left origin
+                # Store bbox relative to the *displayed* canvas
                 bbox_display: BBox = [
-                    (left, bottom_y + height),  # Bottom-left with flipped y (previously top-left)
-                    (left + width, bottom_y + height),  # Bottom-right with flipped y (previously top-right)
-                    (left + width, bottom_y),  # Top-right with flipped y (previously bottom-right)
-                    (left, bottom_y),  # Top-left with flipped y (previously bottom-left)
+                    (left, top),
+                    (left + width, top),
+                    (left + width, top + height),
+                    (left, top + height),
                 ]
                 boxes.append(bbox_display)
                 logger.debug(
-                    f"Added box #{i + 1}: bottom-left=({left},{bottom_y}), width={width}, height={height}, color={stroke_color}")
+                    f"Added box #{i + 1}: top-left=({left},{top}), width={width}, height={height}, color={stroke_color}")
 
                 # Display info (Optional)
-                with st.expander(f"Box #{i + 1} (Displayed Coords, Bottom-Left Origin)", expanded=False):
+                with st.expander(f"Box #{i + 1} (Displayed Coords)", expanded=False):
                     cols = st.columns(2)
                     coords_display = [f"Top-Left: ({bbox_display[0][0]}, {bbox_display[0][1]})",
                                       f"Top-Right: ({bbox_display[1][0]}, {bbox_display[1][1]})",
@@ -248,12 +241,12 @@ def draw(image_path: str, rotation_angle: int = 0) -> Tuple[List[BBox], float, O
                         st.text(f"Height: {height}px")
                         st.text(f"Color: {stroke_color}")  # Display the color
                         # Show estimated original coordinates
-                        orig_bl_x = int(round(bbox_display[0][0] * scale_factor))
-                        orig_bl_y = int(round(bbox_display[0][1] * scale_factor))
-                        orig_tr_x = int(round(bbox_display[2][0] * scale_factor))
-                        orig_tr_y = int(round(bbox_display[2][1] * scale_factor))
-                        st.text(f"Approx Orig BL: ({orig_bl_x}, {orig_bl_y})")
-                        st.text(f"Approx Orig TR: ({orig_tr_x}, {orig_tr_y})")
+                        orig_tl_x = int(round(bbox_display[0][0] * scale_factor))
+                        orig_tl_y = int(round(bbox_display[0][1] * scale_factor))
+                        orig_br_x = int(round(bbox_display[2][0] * scale_factor))
+                        orig_br_y = int(round(bbox_display[2][1] * scale_factor))
+                        st.text(f"Approx Orig TL: ({orig_tl_x}, {orig_tl_y})")
+                        st.text(f"Approx Orig BR: ({orig_br_x}, {orig_br_y})")
 
     except Exception as e:
         logger.error(f"Error during canvas processing: {str(e)}", exc_info=True)
